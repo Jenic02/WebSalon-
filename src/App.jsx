@@ -9,10 +9,12 @@ import About from './pages/About';
 import Gallery from './pages/Gallery';
 import Booking from './pages/Booking';
 import Contact from './pages/Contact';
+import Admin from './pages/Admin';
 import './App.css';
 
 function App() {
   const location = useLocation();
+  const isAdmin = location.pathname === '/admin';
 
   useEffect(() => {
     if (location.hash) {
@@ -23,6 +25,14 @@ function App() {
       }, 100);
     }
   }, [location]);
+
+  if (isAdmin) {
+    return (
+      <div className="app">
+        <Admin />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
