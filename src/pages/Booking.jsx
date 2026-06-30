@@ -251,7 +251,7 @@ export default function Booking() {
               <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', marginBottom: '8px' }}>
                 {t('booking.success')}
               </h3>
-              {assignedStylist && (
+              {assignedStylist && selectedStylist === '' && (
                 <p style={{ marginBottom: '8px', color: 'var(--gold-dark)' }}>
                   {language === 'en' ? 'Your stylist:' : 'Vaš stilista:'} <strong>{assignedStylist}</strong>
                 </p>
@@ -311,38 +311,11 @@ export default function Booking() {
                       fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '8px',
                     }}>{language === 'en' ? 'Choose your stylist' : 'Izaberite stilistu'}</h3>
                     <p style={{ color: 'var(--gray)', fontSize: '0.9rem', marginBottom: '20px' }}>
-                      {language === 'en' ? 'Pick a preferred stylist or let us choose for you.' : 'Izaberite omiljenog stilistu ili prepustite nama.'}
+                      {language === 'en' ? 'Choose your preferred stylist.' : 'Izaberite vašeg omiljenog stilistu.'}
                     </p>
                     <div style={{
                       display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px',
                     }}>
-                      <div
-                        className={`sel-card${selectedStylist === '' ? ' sel-selected' : ''}`}
-                        onClick={() => setSelectedStylist('')}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
-                          border: `2px solid ${selectedStylist === '' ? 'var(--gold)' : 'var(--gray-lighter)'}`,
-                          borderRadius: '8px', cursor: 'pointer', transition: 'var(--transition)',
-                          background: selectedStylist === '' ? 'var(--beige)' : 'var(--white)',
-                        }}
-                      >
-                        <div style={{
-                          width: '44px', height: '44px', borderRadius: '50%',
-                          background: selectedStylist === '' ? 'var(--gold)' : 'var(--gray-lighter)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: '1rem',
-                          color: selectedStylist === '' ? 'var(--white)' : 'var(--gray)',
-                        }}>?</div>
-                        <div style={{ flex: 1 }}>
-                          <strong style={{ display: 'block', fontSize: '1rem' }}>
-                            {language === 'en' ? 'Anyone' : 'Bilo ko'}
-                          </strong>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--gray)' }}>
-                            {language === 'en' ? 'We\'ll assign the available stylist' : 'Dodelićemo dostupnog stilistu'}
-                          </span>
-                        </div>
-                        {selectedStylist === '' && <span style={{ color: 'var(--gold)', fontWeight: 700 }}>&#10003;</span>}
-                      </div>
                       {stylistKeys.map((sk) => (
                         <div
                           key={sk}
@@ -505,24 +478,22 @@ export default function Booking() {
                           {selectedDate ? (
                             timeSlots.map(slot => {
                               const taken = isSlotTaken(slot);
-                              const freeCount = !selectedStylist ? getFreeCount(slot) : 0;
-                              const busyAll = freeCount === 0 && !selectedStylist;
-                              const busyOne = taken && selectedStylist;
-                              const disabled = taken;
-                              let extra = '';
-                              if (!selectedStylist) {
-                                if (freeCount > 0 && freeCount < stylistKeys.length) {
-                                  extra = ` (${freeCount})`;
-                                }
-                              }
+                              const [h, m] = slot.split(':').map(Number);
+                              const [ySel, mSel, dSel] = selectedDate.split('-').map(Number);
+                              const slotDate = new Date(ySel, mSel - 1, dSel, h, m);
+                              const isPastTime = slotDate < new Date();
+                              const disabled = taken || isPastTime;
+                              const cls = `tslot${selectedTime === slot ? ' tslot-sel' : ''}${disabled ? ' tslot-dis' : ''}${!disabled ? ' tslot-free' : ''}`;
                               return (
                                 <button
                                   key={slot}
                                   disabled={disabled}
-                                  className={`tslot${selectedTime === slot ? ' tslot-sel' : ''}${disabled ? ' tslot-dis' : ''}`}
+                                  className={cls}
                                   onClick={() => setSelectedTime(slot)}
                                 >
-                                  {slot}{extra}
+                                  {slot}
+                                  {taken && !isPastTime && <span className="tslot-badge">&nbsp;{language === 'en' ? '(taken)' : '(zauzeto)'}</span>}
+                                  {isPastTime && <span className="tslot-badge">&nbsp;—</span>}
                                 </button>
                               );
                             })
@@ -560,7 +531,7 @@ export default function Booking() {
                       borderRadius: '8px', padding: '20px', marginBottom: '20px',
                     }}>
                       {[
-                        { label: language === 'en' ? 'Stylist' : 'Stilista', value: selectedStylist ? t(`team.${selectedStylist}`) : (language === 'en' ? 'Anyone (we assign)' : 'Bilo ko (mi dodeljujemo)') },
+                        { label: language === 'en' ? 'Stylist' : 'Stilista', value: t(`team.${selectedStylist}`) },
                         { label: language === 'en' ? 'Service' : 'Usluga', value: t(`services.${selectedService}`) },
                         { label: language === 'en' ? 'Price' : 'Cena', value: price(serviceData.find(s => s.key === selectedService)) },
                         { label: language === 'en' ? 'Date' : 'Datum', value: selectedDate ? `${parseInt(selectedDate.split('-')[2])}. ${monthNames[parseInt(selectedDate.split('-')[1]) - 1]} ${selectedDate.split('-')[0]}.` : '' },
@@ -663,10 +634,13 @@ export default function Booking() {
           padding: 10px; border: 1px solid var(--gray-lighter); border-radius: 6px;
           text-align: center; font-size: 0.85rem; cursor: pointer; transition: 0.2s;
           background: var(--white); font-family: var(--font-body); color: var(--black);
+          position: relative;
         }
-        .tslot:hover:not(.tslot-dis) { border-color: var(--gold); }
+        .tslot-free { border-color: #86efac !important; background: #f0fdf4 !important; color: #166534 !important; }
+        .tslot-free:hover { border-color: #22c55e !important; }
         .tslot-sel { border-color: var(--gold) !important; background: var(--beige) !important; font-weight: 600; color: var(--gold-dark) !important; }
-        .tslot-dis { opacity: 0.35; cursor: not-allowed; }
+        .tslot-dis { opacity: 0.5; cursor: not-allowed; background: #f9fafb !important; color: #9ca3af !important; text-decoration: line-through; }
+        .tslot-badge { font-size: 0.7rem; }
 
         @media (max-width: 650px) {
           .wizard-body { padding: 20px 16px !important; }
