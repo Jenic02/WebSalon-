@@ -106,6 +106,7 @@ app.get('/api/booked-slots', async (req, res) => {
 app.post('/api/booking', async (req, res) => {
   try {
     const { name, phone, email, service, stylist, stylistKey, date, time, notes, lang, price } = req.body;
+    console.log('Booking request:', { name, phone, service, stylistKey, date, time });
 
     if (!name || !phone || !service || !date || !time) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -179,8 +180,12 @@ app.post('/api/booking', async (req, res) => {
       assignedStylistKey: assignedKey,
     });
   } catch (err) {
-    console.error('Booking error:', err);
-    res.status(500).json({ error: 'Failed to send booking' });
+    console.error('=== BOOKING ERROR ===');
+    console.error('Message:', err.message);
+    console.error('Name:', err.name);
+    if (err.errors) console.error('Validation errors:', JSON.stringify(err.errors));
+    console.error('Stack:', err.stack);
+    res.status(500).json({ error: 'Failed to send booking', detail: err.message });
   }
 });
 
