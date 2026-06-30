@@ -25,6 +25,7 @@ export default function Booking() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [bookedSlots, setBookedSlots] = useState([]);
+  const [assignedStylist, setAssignedStylist] = useState('');
 
   const fetchBooked = useCallback(async () => {
     try {
@@ -38,19 +39,26 @@ export default function Booking() {
 
   useEffect(() => { fetchBooked(); }, [fetchBooked]);
 
+  const slotsForDate = bookedSlots.filter((b) => b.date === form.date);
+
+  const isSlotTaken = (slotTime) => {
+    if (!form.date) return false;
+    if (form.stylist) {
+      return slotsForDate.some(
+        (b) => b.time === slotTime && b.stylistKey === form.stylist
+      );
+    }
+    const freeStylists = stylistKeys.filter(
+      (sk) => !slotsForDate.some((b) => b.time === slotTime && b.stylistKey === sk)
+    );
+    return freeStylists.length === 0;
+  };
+
   useEffect(() => {
     if (form.time && form.date && isSlotTaken(form.time)) {
       setForm((prev) => ({ ...prev, time: '' }));
     }
   }, [form.date, form.stylist, bookedSlots]);
-
-  const isSlotTaken = (slotTime) => {
-    if (!form.date) return false;
-    const stylistName = form.stylist ? t(`team.${form.stylist}`) : '';
-    return bookedSlots.some(
-      (b) => b.date === form.date && b.time === slotTime && (!form.stylist || b.stylist === stylistName)
-    );
-  };
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -59,13 +67,14 @@ export default function Booking() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setAssignedStylist('');
 
     if (isSlotTaken(form.time)) {
       setError(language === 'en' ? 'This time slot is already taken.' : 'Ovaj termin je već zauzet.');
       return;
     }
 
-    const stylistLabel = form.stylist ? t(`team.${form.stylist}`) : (language === 'en' ? 'Anyone' : 'Bilo ko');
+    const stylistLabel = form.stylist ? t(`team.${form.stylist}`) : '';
     const serviceLabel = form.service ? t(`services.${form.service}`) : '';
 
     try {
@@ -77,16 +86,24 @@ export default function Booking() {
           service: serviceLabel,
           stylist: stylistLabel,
           stylistKey: form.stylist || '',
+          lang: language,
         }),
       });
       if (!res.ok) {
         const data = await res.json();
+        if (data.errorCode === 'ALL_STYLISTS_BUSY') {
+          throw new Error(language === 'en' ? 'All stylists are busy at this time.' : 'Svi stilisti su zauzeti u ovom terminu.');
+        }
         throw new Error(data.error || 'Server error');
       }
+      const data = await res.json();
       setSubmitted(true);
+      if (!form.stylist && data.assignedStylist) {
+        setAssignedStylist(data.assignedStylist);
+      }
       setForm({ name: '', phone: '', email: '', service: '', stylist: '', date: '', time: '', notes: '' });
       fetchBooked();
-      setTimeout(() => setSubmitted(false), 5000);
+      setTimeout(() => { setSubmitted(false); setAssignedStylist(''); }, 6000);
     } catch (err) {
       setError(err.message || (language === 'en' ? 'Failed to send. Please try again.' : 'Greška pri slanju. Pokušajte ponovo.'));
     }
@@ -161,6 +178,11 @@ export default function Booking() {
               color: 'var(--gold-dark)',
             }}>
               {t('booking.success')}
+              {assignedStylist && (
+                <div style={{ marginTop: '8px', fontSize: '0.95rem', fontWeight: 400 }}>
+                  {language === 'en' ? 'Your stylist:' : 'Vaš stilista:'} <strong>{assignedStylist}</strong>
+                </div>
+              )}
             </div>
           )}
 
@@ -274,9 +296,24 @@ export default function Booking() {
                   <option value="">{t('booking.time')}</option>
                   {timeSlots.map((slot) => {
                     const taken = isSlotTaken(slot);
+                    let extra = '';
+                    if (!form.stylist && form.date) {
+                      const busyCount = stylistKeys.filter(
+                        (sk) => slotsForDate.some((b) => b.time === slot && b.stylistKey === sk)
+                      ).length;
+                      const freeCount = stylistKeys.length - busyCount;
+                      if (freeCount === 0) {
+                        extra = language === 'en' ? ' (all busy)' : ' (zauzeto)';
+                      } else if (freeCount < stylistKeys.length) {
+                        extra = ` (${freeCount} ${language === 'en' ? 'free' : 'slobodna'})`;
+                      }
+                    } else if (taken) {
+                      extra = language === 'en' ? ' (taken)' : ' (zauzeto)';
+                    }
+                    const label = slot + extra;
                     return (
                       <option key={slot} value={slot} disabled={taken} style={taken ? { color: '#ccc', textDecoration: 'line-through' } : {}}>
-                        {slot}{taken ? ` (${language === 'en' ? 'taken' : 'zauzeto'})` : ''}
+                        {label}
                       </option>
                     );
                   })}
