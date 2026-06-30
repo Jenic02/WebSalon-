@@ -1,27 +1,51 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../context/useTranslation';
 
-const serviceKeys = [
-  'womenHaircut', 'menHaircut', 'kidsHaircut', 'basicColoring',
-  'balayage', 'ombre', 'highlights', 'blowout', 'updo',
-  'smoothing', 'deepCondition', 'scalpTreatment', 'beardTrim', 'hotTowels',
-];
-
 const stylistKeys = ['member1Name', 'member2Name', 'member3Name', 'member4Name'];
 
-const timeSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-  '18:00', '18:30', '19:00', '19:30',
+const serviceData = [
+  { key: 'womenHaircut', priceEn: 35, priceSr: 2500, curEn: '$', curSr: 'RSD' },
+  { key: 'menHaircut', priceEn: 25, priceSr: 1800, curEn: '$', curSr: 'RSD' },
+  { key: 'kidsHaircut', priceEn: 20, priceSr: 1500, curEn: '$', curSr: 'RSD' },
+  { key: 'basicColoring', priceEn: 60, priceSr: 4500, curEn: '$', curSr: 'RSD' },
+  { key: 'balayage', priceEn: 90, priceSr: 6500, curEn: '$', curSr: 'RSD' },
+  { key: 'ombre', priceEn: 80, priceSr: 5500, curEn: '$', curSr: 'RSD' },
+  { key: 'highlights', priceEn: 70, priceSr: 5000, curEn: '$', curSr: 'RSD' },
+  { key: 'blowout', priceEn: 40, priceSr: 2500, curEn: '$', curSr: 'RSD' },
+  { key: 'updo', priceEn: 80, priceSr: 5500, curEn: '$', curSr: 'RSD' },
+  { key: 'smoothing', priceEn: 120, priceSr: 8000, curEn: '$', curSr: 'RSD' },
+  { key: 'deepCondition', priceEn: 45, priceSr: 3000, curEn: '$', curSr: 'RSD' },
+  { key: 'scalpTreatment', priceEn: 55, priceSr: 3500, curEn: '$', curSr: 'RSD' },
+  { key: 'beardTrim', priceEn: 20, priceSr: 1200, curEn: '$', curSr: 'RSD' },
+  { key: 'hotTowels', priceEn: 30, priceSr: 2000, curEn: '$', curSr: 'RSD' },
 ];
+
+const timeSlots = [
+  '09:00','09:30','10:00','10:30','11:00','11:30',
+  '12:00','12:30','13:00','13:30','14:00','14:30',
+  '15:00','15:30','16:00','16:30','17:00','17:30',
+  '18:00','18:30','19:00','19:30',
+];
+
+const monthNamesEn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const monthNamesSr = ['Januar','Februar','Mart','April','Maj','Jun','Jul','Avgust','Septembar','Oktobar','Novembar','Decembar'];
+const dayNamesEn = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const dayNamesSr = ['Pon','Uto','Sri','Čet','Pet','Sub','Ned'];
 
 export default function Booking() {
   const { t, language } = useTranslation();
-  const [form, setForm] = useState({
-    name: '', phone: '', email: '',
-    service: '', stylist: '', date: '', time: '', notes: '',
-  });
+
+  const [step, setStep] = useState(1);
+  const [selectedStylist, setSelectedStylist] = useState('');
+  const [selectedService, setSelectedService] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
+
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [bookedSlots, setBookedSlots] = useState([]);
@@ -34,18 +58,18 @@ export default function Booking() {
         const data = await res.json();
         setBookedSlots(data.slots || []);
       }
-    } catch { /* server nije dostupan */ }
+    } catch {}
   }, []);
 
   useEffect(() => { fetchBooked(); }, [fetchBooked]);
 
-  const slotsForDate = bookedSlots.filter((b) => b.date === form.date);
+  const slotsForDate = bookedSlots.filter((b) => b.date === selectedDate);
 
   const isSlotTaken = (slotTime) => {
-    if (!form.date) return false;
-    if (form.stylist) {
+    if (!selectedDate) return false;
+    if (selectedStylist) {
       return slotsForDate.some(
-        (b) => b.time === slotTime && b.stylistKey === form.stylist
+        (b) => b.time === slotTime && b.stylistKey === selectedStylist
       );
     }
     const freeStylists = stylistKeys.filter(
@@ -54,39 +78,87 @@ export default function Booking() {
     return freeStylists.length === 0;
   };
 
-  useEffect(() => {
-    if (form.time && form.date && isSlotTaken(form.time)) {
-      setForm((prev) => ({ ...prev, time: '' }));
-    }
-  }, [form.date, form.stylist, bookedSlots]);
-
-  const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const getFreeCount = (slotTime) => {
+    const busy = stylistKeys.filter(
+      (sk) => slotsForDate.some((b) => b.time === slotTime && b.stylistKey === sk)
+    ).length;
+    return stylistKeys.length - busy;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const firstDay = new Date(calYear, calMonth, 1);
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const startDay = (firstDay.getDay() + 6) % 7;
+
+  const canGoPrev = calYear > today.getFullYear() ||
+    (calYear === today.getFullYear() && calMonth > today.getMonth());
+
+  const prevMonth = () => {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  };
+
+  const monthNames = language === 'en' ? monthNamesEn : monthNamesSr;
+  const dayNames = language === 'en' ? dayNamesEn : dayNamesSr;
+
+  const formatDateStr = (d, m, y) =>
+    `${y}-${(m + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+
+  const goNext = () => setStep(s => s + 1);
+  const goBack = () => setStep(s => s - 1);
+
+  const canGoStep2 = selectedStylist !== '';
+  const canGoStep3 = selectedService !== '';
+  const canGoStep4 = selectedDate !== '' && selectedTime !== '';
+
+  const resetBooking = () => {
+    setStep(1);
+    setSelectedStylist('');
+    setSelectedService('');
+    setSelectedDate('');
+    setSelectedTime('');
+    setName('');
+    setPhone('');
+    setNotes('');
+    setSubmitted(false);
+    setError('');
+    setAssignedStylist('');
+  };
+
+  const handleSubmit = async () => {
     setError('');
     setAssignedStylist('');
 
-    if (isSlotTaken(form.time)) {
+    if (isSlotTaken(selectedTime)) {
       setError(language === 'en' ? 'This time slot is already taken.' : 'Ovaj termin je već zauzet.');
       return;
     }
 
-    const stylistLabel = form.stylist ? t(`team.${form.stylist}`) : '';
-    const serviceLabel = form.service ? t(`services.${form.service}`) : '';
+    const stylistLabel = selectedStylist ? t(`team.${selectedStylist}`) : '';
+    const serviceLabel = selectedService ? t(`services.${selectedService}`) : '';
+    const svc = serviceData.find(s => s.key === selectedService);
+    const priceStr = svc
+      ? `${language === 'en' ? svc.curEn : svc.curSr}${language === 'en' ? svc.priceEn : svc.priceSr}`
+      : '';
 
     try {
       const res = await fetch('/api/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
+          name, phone, email: '', notes,
           service: serviceLabel,
           stylist: stylistLabel,
-          stylistKey: form.stylist || '',
+          stylistKey: selectedStylist || '',
+          date: selectedDate,
+          time: selectedTime,
           lang: language,
+          price: priceStr,
         }),
       });
       if (!res.ok) {
@@ -98,41 +170,46 @@ export default function Booking() {
       }
       const data = await res.json();
       setSubmitted(true);
-      if (!form.stylist && data.assignedStylist) {
+      if (!selectedStylist && data.assignedStylist) {
         setAssignedStylist(data.assignedStylist);
       }
-      setForm({ name: '', phone: '', email: '', service: '', stylist: '', date: '', time: '', notes: '' });
       fetchBooked();
-      setTimeout(() => { setSubmitted(false); setAssignedStylist(''); }, 6000);
     } catch (err) {
       setError(err.message || (language === 'en' ? 'Failed to send. Please try again.' : 'Greška pri slanju. Pokušajte ponovo.'));
     }
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '14px 16px',
-    border: '1px solid var(--gray-lighter)',
-    fontFamily: 'var(--font-body)',
-    fontSize: '0.95rem',
-    color: 'var(--black)',
-    background: 'var(--white)',
-    transition: 'var(--transition)',
-    outline: 'none',
-    borderRadius: 0,
-  };
+  const price = (svc) => language === 'en'
+    ? `${svc.curEn}${svc.priceEn}`
+    : `${svc.priceSr} ${svc.curSr}`;
 
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '8px',
-    fontWeight: 500,
-    fontSize: '0.9rem',
-    color: 'var(--black)',
+  const renderDateBtn = (d) => {
+    const dateObj = new Date(calYear, calMonth, d);
+    dateObj.setHours(0, 0, 0, 0);
+    const isPast = dateObj < today;
+    const isSunday = dateObj.getDay() === 0;
+    const isToday = dateObj.getTime() === today.getTime();
+    const dateStr = formatDateStr(d, calMonth, calYear);
+    const disabled = isPast || isSunday;
+    const selected = selectedDate === dateStr;
+    return (
+      <button
+        key={d}
+        disabled={disabled}
+        className={`cal-day${isToday ? ' cal-today' : ''}${selected ? ' cal-selected' : ''}`}
+        onClick={() => {
+          if (disabled) return;
+          setSelectedDate(dateStr);
+          setSelectedTime('');
+        }}
+      >
+        {d}
+      </button>
+    );
   };
 
   return (
     <div style={{ paddingTop: '80px' }}>
-      {/* HERO */}
       <section style={{
         padding: '80px 20px',
         background: 'linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(https://images.unsplash.com/photo-1634449571010-02389ed0f9b0?w=1600) center/cover no-repeat',
@@ -151,196 +228,452 @@ export default function Booking() {
         </div>
       </section>
 
-      {/* FORM */}
       <section style={{ padding: '80px 0' }}>
-        <div className="container" style={{ maxWidth: '700px' }}>
+        <div className="container" style={{ maxWidth: '720px' }}>
           {error && (
             <div style={{
-              padding: '20px',
-              background: '#fef2f2',
-              border: '1px solid #f87171',
-              marginBottom: '30px',
-              textAlign: 'center',
-              color: '#b91c1c',
-            }}>
-              {error}
-            </div>
+              padding: '16px', background: '#fef2f2', border: '1px solid #f87171',
+              marginBottom: '20px', textAlign: 'center', color: '#b91c1c',
+            }}>{error}</div>
           )}
-          {submitted && (
-            <div style={{
-              padding: '20px',
-              background: 'var(--beige)',
-              border: '1px solid var(--gold)',
-              marginBottom: '30px',
-              textAlign: 'center',
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.1rem',
-              color: 'var(--gold-dark)',
+
+          {submitted ? (
+            <div className="booking-wizard" style={{
+              background: 'var(--white)', border: '1px solid var(--gray-lighter)',
+              padding: '48px 24px', textAlign: 'center',
             }}>
-              {t('booking.success')}
+              <div style={{
+                width: '64px', height: '64px', margin: '0 auto 20px',
+                borderRadius: '50%', background: 'var(--beige)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--gold)', fontSize: '2rem',
+              }}>&#10003;</div>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', marginBottom: '8px' }}>
+                {t('booking.success')}
+              </h3>
               {assignedStylist && (
-                <div style={{ marginTop: '8px', fontSize: '0.95rem', fontWeight: 400 }}>
+                <p style={{ marginBottom: '8px', color: 'var(--gold-dark)' }}>
                   {language === 'en' ? 'Your stylist:' : 'Vaš stilista:'} <strong>{assignedStylist}</strong>
-                </div>
+                </p>
               )}
+              <p style={{ color: 'var(--gray)', marginBottom: '24px', fontSize: '0.95rem' }}>
+                {language === 'en' ? 'Confirmation has been sent.' : 'Potvrda je poslata.'}
+              </p>
+              <button className="btn btn-primary" onClick={resetBooking}>
+                {language === 'en' ? 'Book Another' : 'Zakaži novi termin'}
+              </button>
+            </div>
+          ) : (
+            <div className="booking-wizard" style={{
+              background: 'var(--white)', border: '1px solid var(--gray-lighter)',
+            }}>
+              {/* STEP INDICATOR */}
+              <div className="wizard-steps" style={{
+                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                borderBottom: '1px solid var(--gray-lighter)',
+                background: 'var(--beige-light)',
+              }}>
+                {[
+                  { en: 'Stylist', sr: 'Stilista' },
+                  { en: 'Service', sr: 'Usluga' },
+                  { en: 'Date & Time', sr: 'Datum & Vreme' },
+                  { en: 'Confirm', sr: 'Potvrda' },
+                ].map((label, i) => {
+                  const num = i + 1;
+                  const active = step === num;
+                  const done = step > num;
+                  return (
+                    <div key={num} className={`wiz-step${active ? ' active' : ''}${done ? ' done' : ''}`} style={{
+                      padding: '16px 8px', textAlign: 'center', opacity: done ? 0.7 : active ? 1 : 0.4,
+                      transition: 'var(--transition)',
+                    }}>
+                      <div style={{
+                        width: '32px', height: '32px', margin: '0 auto 6px', borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.85rem', fontWeight: 700, transition: 'var(--transition)',
+                        background: done ? 'var(--gold)' : active ? 'var(--gold)' : 'transparent',
+                        border: `2px solid ${done ? 'var(--gold)' : active ? 'var(--gold)' : 'var(--gray-lighter)'}`,
+                        color: done || active ? 'var(--white)' : 'var(--gray)',
+                      }}>{done ? '\u2713' : num}</div>
+                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray)' }}>
+                        {language === 'en' ? label.en : label.sr}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* STEP 1: STYLIST */}
+              <div className="wizard-body" style={{ padding: '32px 36px' }}>
+                {step === 1 && (
+                  <div>
+                    <h3 style={{
+                      fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '8px',
+                    }}>{language === 'en' ? 'Choose your stylist' : 'Izaberite stilistu'}</h3>
+                    <p style={{ color: 'var(--gray)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                      {language === 'en' ? 'Pick a preferred stylist or let us choose for you.' : 'Izaberite omiljenog stilistu ili prepustite nama.'}
+                    </p>
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px',
+                    }}>
+                      <div
+                        className={`sel-card${selectedStylist === '' ? ' sel-selected' : ''}`}
+                        onClick={() => setSelectedStylist('')}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
+                          border: `2px solid ${selectedStylist === '' ? 'var(--gold)' : 'var(--gray-lighter)'}`,
+                          borderRadius: '8px', cursor: 'pointer', transition: 'var(--transition)',
+                          background: selectedStylist === '' ? 'var(--beige)' : 'var(--white)',
+                        }}
+                      >
+                        <div style={{
+                          width: '44px', height: '44px', borderRadius: '50%',
+                          background: selectedStylist === '' ? 'var(--gold)' : 'var(--gray-lighter)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '1rem',
+                          color: selectedStylist === '' ? 'var(--white)' : 'var(--gray)',
+                        }}>?</div>
+                        <div style={{ flex: 1 }}>
+                          <strong style={{ display: 'block', fontSize: '1rem' }}>
+                            {language === 'en' ? 'Anyone' : 'Bilo ko'}
+                          </strong>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--gray)' }}>
+                            {language === 'en' ? 'We\'ll assign the available stylist' : 'Dodelićemo dostupnog stilistu'}
+                          </span>
+                        </div>
+                        {selectedStylist === '' && <span style={{ color: 'var(--gold)', fontWeight: 700 }}>&#10003;</span>}
+                      </div>
+                      {stylistKeys.map((sk) => (
+                        <div
+                          key={sk}
+                          className={`sel-card${selectedStylist === sk ? ' sel-selected' : ''}`}
+                          onClick={() => setSelectedStylist(sk)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
+                            border: `2px solid ${selectedStylist === sk ? 'var(--gold)' : 'var(--gray-lighter)'}`,
+                            borderRadius: '8px', cursor: 'pointer', transition: 'var(--transition)',
+                            background: selectedStylist === sk ? 'var(--beige)' : 'var(--white)',
+                          }}
+                        >
+                          <div style={{
+                            width: '44px', height: '44px', borderRadius: '50%',
+                            background: selectedStylist === sk ? 'var(--gold)' : 'var(--gray-lighter)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700, fontSize: '1rem',
+                            color: selectedStylist === sk ? 'var(--white)' : 'var(--gray)',
+                          }}>{t(`team.${sk}`).charAt(0)}</div>
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ display: 'block', fontSize: '1rem' }}>{t(`team.${sk}`)}</strong>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--gray)' }}>{t(`team.${sk}Role`)}</span>
+                          </div>
+                          {selectedStylist === sk && <span style={{ color: 'var(--gold)', fontWeight: 700 }}>&#10003;</span>}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                      <button className="btn btn-primary" disabled={!canGoStep2} onClick={goNext}>
+                        {language === 'en' ? 'Next' : 'Dalje'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: SERVICE */}
+                {step === 2 && (
+                  <div>
+                    <h3 style={{
+                      fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '8px',
+                    }}>{language === 'en' ? 'Choose a service' : 'Izaberite uslugu'}</h3>
+                    <p style={{ color: 'var(--gray)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                      {language === 'en' ? 'Select the service you need.' : 'Izaberite uslugu koja vam je potrebna.'}
+                    </p>
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px',
+                    }}>
+                      {serviceData.map((svc) => (
+                        <div
+                          key={svc.key}
+                          className={`sel-card${selectedService === svc.key ? ' sel-selected' : ''}`}
+                          onClick={() => setSelectedService(svc.key)}
+                          style={{
+                            padding: '18px', textAlign: 'center', position: 'relative',
+                            border: `2px solid ${selectedService === svc.key ? 'var(--gold)' : 'var(--gray-lighter)'}`,
+                            borderRadius: '8px', cursor: 'pointer', transition: 'var(--transition)',
+                            background: selectedService === svc.key ? 'var(--beige)' : 'var(--white)',
+                          }}
+                        >
+                          <strong style={{ display: 'block', fontSize: '1rem', marginBottom: '4px' }}>
+                            {t(`services.${svc.key}`)}
+                          </strong>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--gold-dark)', fontWeight: 600 }}>
+                            {price(svc)}
+                          </span>
+                          {selectedService === svc.key && (
+                            <span style={{
+                              position: 'absolute', top: '8px', right: '8px',
+                              width: '20px', height: '20px', borderRadius: '50%',
+                              background: 'var(--gold)', color: 'var(--white)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.7rem', fontWeight: 700,
+                            }}>&#10003;</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
+                      <button className="btn" onClick={goBack} style={{ border: '1px solid var(--gray-lighter)', background: 'var(--white)' }}>
+                        {language === 'en' ? 'Back' : 'Nazad'}
+                      </button>
+                      <button className="btn btn-primary" disabled={!canGoStep3} onClick={goNext}>
+                        {language === 'en' ? 'Next' : 'Dalje'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: DATE & TIME */}
+                {step === 3 && (
+                  <div>
+                    <h3 style={{
+                      fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '8px',
+                    }}>{language === 'en' ? 'Choose date & time' : 'Izaberite datum i vreme'}</h3>
+                    <p style={{ color: 'var(--gray)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                      {language === 'en' ? 'Pick a date and available time slot.' : 'Izaberite datum i slobodan termin.'}
+                    </p>
+                    <div className="datetime-grid" style={{
+                      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px',
+                    }}>
+                      {/* Calendar */}
+                      <div style={{
+                        border: '1px solid var(--gray-lighter)', borderRadius: '8px', padding: '16px',
+                      }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px',
+                        }}>
+                          <button
+                            onClick={prevMonth}
+                            disabled={!canGoPrev}
+                            style={{
+                              background: 'none', border: '1px solid var(--gray-lighter)', borderRadius: '50%',
+                              width: '30px', height: '30px', cursor: 'pointer', fontSize: '0.9rem',
+                              opacity: canGoPrev ? 1 : 0.3, color: 'var(--black)',
+                            }}
+                          >&lt;</button>
+                          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                            {monthNames[calMonth]} {calYear}
+                          </span>
+                          <button
+                            onClick={nextMonth}
+                            style={{
+                              background: 'none', border: '1px solid var(--gray-lighter)', borderRadius: '50%',
+                              width: '30px', height: '30px', cursor: 'pointer', fontSize: '0.9rem',
+                              color: 'var(--black)',
+                            }}
+                          >&gt;</button>
+                        </div>
+                        <div style={{
+                          display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px',
+                        }}>
+                          {dayNames.map(d => (
+                            <span key={d} style={{
+                              textAlign: 'center', fontSize: '0.7rem', color: 'var(--gray)',
+                              fontWeight: 600, textTransform: 'uppercase', padding: '4px 0',
+                            }}>{d}</span>
+                          ))}
+                        </div>
+                        <div style={{
+                          display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px',
+                        }}>
+                          {Array.from({ length: startDay }, (_, i) => (
+                            <div key={`e${i}`} />
+                          ))}
+                          {Array.from({ length: daysInMonth }, (_, i) => renderDateBtn(i + 1))}
+                        </div>
+                      </div>
+
+                      {/* Time slots */}
+                      <div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--gray)', marginBottom: '12px' }}>
+                          {selectedDate
+                            ? (language === 'en' ? 'Available times:' : 'Dostupni termini:')
+                            : (language === 'en' ? 'Select a date first' : 'Prvo izaberite datum')}
+                        </p>
+                        <div className="time-grid" style={{
+                          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px',
+                          maxHeight: '280px', overflowY: 'auto',
+                        }}>
+                          {selectedDate ? (
+                            timeSlots.map(slot => {
+                              const taken = isSlotTaken(slot);
+                              const freeCount = !selectedStylist ? getFreeCount(slot) : 0;
+                              const busyAll = freeCount === 0 && !selectedStylist;
+                              const busyOne = taken && selectedStylist;
+                              const disabled = taken;
+                              let extra = '';
+                              if (!selectedStylist) {
+                                if (freeCount > 0 && freeCount < stylistKeys.length) {
+                                  extra = ` (${freeCount})`;
+                                }
+                              }
+                              return (
+                                <button
+                                  key={slot}
+                                  disabled={disabled}
+                                  className={`tslot${selectedTime === slot ? ' tslot-sel' : ''}${disabled ? ' tslot-dis' : ''}`}
+                                  onClick={() => setSelectedTime(slot)}
+                                >
+                                  {slot}{extra}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <span style={{
+                              gridColumn: '1 / -1', textAlign: 'center', color: 'var(--gray)',
+                              padding: '24px 0', fontSize: '0.9rem',
+                            }}>
+                              {language === 'en' ? 'Select a date' : 'Izaberite datum'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
+                      <button className="btn" onClick={goBack} style={{ border: '1px solid var(--gray-lighter)', background: 'var(--white)' }}>
+                        {language === 'en' ? 'Back' : 'Nazad'}
+                      </button>
+                      <button className="btn btn-primary" disabled={!canGoStep4} onClick={goNext}>
+                        {language === 'en' ? 'Next' : 'Dalje'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: CONFIRM */}
+                {step === 4 && (
+                  <div>
+                    <h3 style={{
+                      fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '20px', textAlign: 'center',
+                    }}>{language === 'en' ? 'Confirm your booking' : 'Potvrdite termin'}</h3>
+
+                    <div style={{
+                      background: 'var(--beige)', border: '1px solid var(--gray-lighter)',
+                      borderRadius: '8px', padding: '20px', marginBottom: '20px',
+                    }}>
+                      {[
+                        { label: language === 'en' ? 'Stylist' : 'Stilista', value: selectedStylist ? t(`team.${selectedStylist}`) : (language === 'en' ? 'Anyone (we assign)' : 'Bilo ko (mi dodeljujemo)') },
+                        { label: language === 'en' ? 'Service' : 'Usluga', value: t(`services.${selectedService}`) },
+                        { label: language === 'en' ? 'Price' : 'Cena', value: price(serviceData.find(s => s.key === selectedService)) },
+                        { label: language === 'en' ? 'Date' : 'Datum', value: selectedDate ? `${parseInt(selectedDate.split('-')[2])}. ${monthNames[parseInt(selectedDate.split('-')[1]) - 1]} ${selectedDate.split('-')[0]}.` : '' },
+                        { label: language === 'en' ? 'Time' : 'Vreme', value: selectedTime },
+                      ].map((item, i, arr) => (
+                        <div key={i} style={{
+                          display: 'flex', justifyContent: 'space-between',
+                          padding: '10px 0',
+                          borderBottom: i < arr.length - 1 ? '1px solid var(--gray-lighter)' : 'none',
+                        }}>
+                          <span style={{ color: 'var(--gray)', fontSize: '0.9rem' }}>{item.label}</span>
+                          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                      <input
+                        type="text"
+                        placeholder={language === 'en' ? 'Full Name *' : 'Ime i prezime *'}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        style={{
+                          width: '100%', padding: '14px 16px',
+                          border: '1px solid var(--gray-lighter)', borderRadius: '8px',
+                          fontFamily: 'var(--font-body)', fontSize: '0.95rem',
+                          outline: 'none', transition: 'var(--transition)',
+                        }}
+                        onFocus={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                        onBlur={e => e.currentTarget.style.borderColor = 'var(--gray-lighter)'}
+                      />
+                      <input
+                        type="tel"
+                        placeholder={language === 'en' ? 'Phone Number *' : 'Broj telefona *'}
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        required
+                        style={{
+                          width: '100%', padding: '14px 16px',
+                          border: '1px solid var(--gray-lighter)', borderRadius: '8px',
+                          fontFamily: 'var(--font-body)', fontSize: '0.95rem',
+                          outline: 'none', transition: 'var(--transition)',
+                        }}
+                        onFocus={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                        onBlur={e => e.currentTarget.style.borderColor = 'var(--gray-lighter)'}
+                      />
+                      <textarea
+                        placeholder={language === 'en' ? 'Notes (optional)' : 'Napomene (opciono)'}
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        rows={3}
+                        style={{
+                          width: '100%', padding: '14px 16px',
+                          border: '1px solid var(--gray-lighter)', borderRadius: '8px',
+                          fontFamily: 'var(--font-body)', fontSize: '0.95rem',
+                          outline: 'none', transition: 'var(--transition)', resize: 'vertical',
+                        }}
+                        onFocus={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                        onBlur={e => e.currentTarget.style.borderColor = 'var(--gray-lighter)'}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
+                      <button className="btn" onClick={goBack} style={{ border: '1px solid var(--gray-lighter)', background: 'var(--white)' }}>
+                        {language === 'en' ? 'Back' : 'Nazad'}
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        disabled={!name.trim() || !phone.trim()}
+                        onClick={handleSubmit}
+                      >
+                        {language === 'en' ? 'Confirm Booking' : 'Potvrdi termin'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>{t('booking.name')} *</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  placeholder={t('booking.namePlaceholder')}
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>{t('booking.phone')} *</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  required
-                  placeholder={t('booking.phonePlaceholder')}
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>{t('booking.email')}</label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder={t('booking.emailPlaceholder')}
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>{t('booking.service')} *</label>
-                <select
-                  name="service"
-                  value={form.service}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                >
-                  <option value="">{t('booking.chooseService')}</option>
-                  {serviceKeys.map((s) => (
-                    <option key={s} value={s}>{t(`services.${s}`)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>{t('booking.stylist')}</label>
-                <select
-                  name="stylist"
-                  value={form.stylist}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                >
-                  <option value="">{t('booking.anyone')}</option>
-                  {stylistKeys.map((s) => (
-                    <option key={s} value={s}>{t(`team.${s}`)}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>{t('booking.date')} *</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>{t('booking.time')} *</label>
-                <select
-                  name="time"
-                  value={form.time}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-                >
-                  <option value="">{t('booking.time')}</option>
-                  {timeSlots.map((slot) => {
-                    const taken = isSlotTaken(slot);
-                    let extra = '';
-                    if (!form.stylist && form.date) {
-                      const busyCount = stylistKeys.filter(
-                        (sk) => slotsForDate.some((b) => b.time === slot && b.stylistKey === sk)
-                      ).length;
-                      const freeCount = stylistKeys.length - busyCount;
-                      if (freeCount === 0) {
-                        extra = language === 'en' ? ' (all busy)' : ' (zauzeto)';
-                      } else if (freeCount < stylistKeys.length) {
-                        extra = ` (${freeCount} ${language === 'en' ? 'free' : 'slobodna'})`;
-                      }
-                    } else if (taken) {
-                      extra = language === 'en' ? ' (taken)' : ' (zauzeto)';
-                    }
-                    const label = slot + extra;
-                    return (
-                      <option key={slot} value={slot} disabled={taken} style={taken ? { color: '#ccc', textDecoration: 'line-through' } : {}}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>{t('booking.notes')}</label>
-              <textarea
-                name="notes"
-                value={form.notes}
-                onChange={handleChange}
-                rows={4}
-                placeholder={t('booking.notesPlaceholder')}
-                style={{ ...inputStyle, resize: 'vertical' }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--gray-lighter)'; }}
-              />
-            </div>
-
-            <button type="submit" className="btn btn-primary" style={{ alignSelf: 'center', marginTop: '10px' }}>
-              {t('booking.submit')}
-            </button>
-          </form>
         </div>
       </section>
+
+      <style>{`
+        .sel-card { transition: all 0.25s ease; }
+        .sel-card:hover { border-color: var(--gold) !important; }
+
+        .cal-day {
+          aspect-ratio: 1; border: none; border-radius: 50%;
+          background: transparent; color: var(--black);
+          font-size: 0.85rem; cursor: pointer; transition: 0.2s;
+          font-family: var(--font-body);
+        }
+        .cal-day:hover:not(:disabled) { background: var(--beige); }
+        .cal-day:disabled { color: var(--gray-lighter); cursor: not-allowed; }
+        .cal-today { border: 1px solid var(--gray-lighter) !important; }
+        .cal-selected { background: var(--gold) !important; color: var(--white) !important; font-weight: 600; }
+
+        .tslot {
+          padding: 10px; border: 1px solid var(--gray-lighter); border-radius: 6px;
+          text-align: center; font-size: 0.85rem; cursor: pointer; transition: 0.2s;
+          background: var(--white); font-family: var(--font-body); color: var(--black);
+        }
+        .tslot:hover:not(.tslot-dis) { border-color: var(--gold); }
+        .tslot-sel { border-color: var(--gold) !important; background: var(--beige) !important; font-weight: 600; color: var(--gold-dark) !important; }
+        .tslot-dis { opacity: 0.35; cursor: not-allowed; }
+
+        @media (max-width: 650px) {
+          .wizard-body { padding: 20px 16px !important; }
+          .datetime-grid { grid-template-columns: 1fr !important; }
+          .wizard-body h3 { font-size: 1.1rem !important; }
+        }
+      `}</style>
     </div>
   );
 }
