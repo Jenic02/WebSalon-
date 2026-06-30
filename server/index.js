@@ -4,11 +4,14 @@ import nodemailer from 'nodemailer';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import dns from 'dns';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import Booking from './models/Booking.js';
+
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '.env') });
