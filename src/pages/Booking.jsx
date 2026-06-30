@@ -49,7 +49,6 @@ export default function Booking() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [bookedSlots, setBookedSlots] = useState([]);
-  const [assignedStylist, setAssignedStylist] = useState('');
 
   const fetchBooked = useCallback(async () => {
     try {
@@ -66,23 +65,10 @@ export default function Booking() {
   const slotsForDate = bookedSlots.filter((b) => b.date === selectedDate);
 
   const isSlotTaken = (slotTime) => {
-    if (!selectedDate) return false;
-    if (selectedStylist) {
-      return slotsForDate.some(
-        (b) => b.time === slotTime && b.stylistKey === selectedStylist
-      );
-    }
-    const freeStylists = stylistKeys.filter(
-      (sk) => !slotsForDate.some((b) => b.time === slotTime && b.stylistKey === sk)
+    if (!selectedDate || !selectedStylist) return false;
+    return slotsForDate.some(
+      (b) => b.time === slotTime && b.stylistKey === selectedStylist
     );
-    return freeStylists.length === 0;
-  };
-
-  const getFreeCount = (slotTime) => {
-    const busy = stylistKeys.filter(
-      (sk) => slotsForDate.some((b) => b.time === slotTime && b.stylistKey === sk)
-    ).length;
-    return stylistKeys.length - busy;
   };
 
   const today = new Date();
@@ -127,12 +113,10 @@ export default function Booking() {
     setNotes('');
     setSubmitted(false);
     setError('');
-    setAssignedStylist('');
   };
 
   const handleSubmit = async () => {
     setError('');
-    setAssignedStylist('');
 
     if (isSlotTaken(selectedTime)) {
       setError(language === 'en' ? 'This time slot is already taken.' : 'Ovaj termin je već zauzet.');
@@ -142,9 +126,7 @@ export default function Booking() {
     const stylistLabel = selectedStylist ? t(`team.${selectedStylist}`) : '';
     const serviceLabel = selectedService ? t(`services.${selectedService}`) : '';
     const svc = serviceData.find(s => s.key === selectedService);
-    const priceStr = svc
-      ? `${language === 'en' ? svc.curEn : svc.curSr}${language === 'en' ? svc.priceEn : svc.priceSr}`
-      : '';
+    const priceStr = svc ? price(svc) : '';
 
     try {
       const res = await fetch('/api/booking', {
@@ -168,11 +150,7 @@ export default function Booking() {
         }
         throw new Error(data.error || 'Server error');
       }
-      const data = await res.json();
       setSubmitted(true);
-      if (!selectedStylist && data.assignedStylist) {
-        setAssignedStylist(data.assignedStylist);
-      }
       fetchBooked();
     } catch (err) {
       setError(err.message || (language === 'en' ? 'Failed to send. Please try again.' : 'Greška pri slanju. Pokušajte ponovo.'));
@@ -251,11 +229,6 @@ export default function Booking() {
               <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', marginBottom: '8px' }}>
                 {t('booking.success')}
               </h3>
-              {assignedStylist && selectedStylist === '' && (
-                <p style={{ marginBottom: '8px', color: 'var(--gold-dark)' }}>
-                  {language === 'en' ? 'Your stylist:' : 'Vaš stilista:'} <strong>{assignedStylist}</strong>
-                </p>
-              )}
               <p style={{ color: 'var(--gray)', marginBottom: '24px', fontSize: '0.95rem' }}>
                 {language === 'en' ? 'Confirmation has been sent.' : 'Potvrda je poslata.'}
               </p>
