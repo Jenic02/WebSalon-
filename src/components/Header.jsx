@@ -158,6 +158,7 @@ export default function Header() {
             flexDirection: 'column',
             gap: '5px',
             padding: '5px',
+            zIndex: 1000,
           }}
         >
           <span style={{
@@ -204,7 +205,11 @@ export default function Header() {
             align-items: flex-start !important;
           }
           .nav-links .nav-link {
+            color: var(--white) !important;
             font-size: 1rem !important;
+          }
+          .nav-links .nav-link.active {
+            color: var(--gold) !important;
           }
         }
       `}</style>
